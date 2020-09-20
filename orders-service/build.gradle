@@ -1,0 +1,68 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath "io.spring.gradle:dependency-management-plugin:0.6.0.RELEASE"
+        // if using Stub Runner (consumer side) only remove this dependency
+        classpath "org.springframework.cloud:spring-cloud-contract-gradle-plugin:1.1.1.RELEASE"
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}"
+        classpath "com.avast.gradle:docker-compose-gradle-plugin:$dockerComposePluginVersion"
+    }
+}
+
+
+
+apply plugin: "io.spring.dependency-management"
+apply plugin: 'docker-compose'
+
+dockerCompose.isRequiredBy(test)
+
+dependencyManagement {
+    imports {
+            mavenBom 'org.springframework.cloud:spring-cloud-contract-dependencies:1.1.1.RELEASE'
+    }
+}
+
+apply plugin: 'org.springframework.boot'
+
+dockerCompose {
+    environment.put "EVENTUATE_COMMON_VERSION", eventuateCommonImageVersion
+    environment.put "EVENTUATE_CDC_VERSION", eventuateCdcImageVersion
+
+    projectName = null
+
+    if ("postgres,EventuatePolling".equals(System.getenv("SPRING_PROFILES_ACTIVE")))
+        useComposeFiles = ['../docker-compose-eventuate-local-postgres-polling.yml']
+    else if ("postgres,PostgresWal".equals(System.getenv("SPRING_PROFILES_ACTIVE")))
+        useComposeFiles = ['../docker-compose-eventuate-local-postgres-wal.yml']
+    else useComposeFiles = ['../docker-compose-eventuate-local-mysql.yml']
+
+
+    startedServices = ['customercommandside']
+}
+
+dependencies {
+    compile project(":orders-common")
+    compile project(":common-swagger")
+
+    compile "org.springframework.boot:spring-boot-starter:$springBootVersion"
+    compile "org.springframework.boot:spring-boot-starter-web:$springBootVersion"
+    compile "org.springframework.boot:spring-boot-starter-actuator:$springBootVersion"
+    compile "io.eventuate.local.java:eventuate-local-java-spring-jdbc:$eventuateLocalVersion"
+
+
+    //testCompile "net.chrisrichardson.eventstore.examples.customersandorders:common-contracts:1.0-SNAPSHOT:stubs"
+
+    testCompile "io.eventuate.local.java:eventuate-client-java-spring-jdbc:$eventuateLocalVersion"
+    testCompile project(":customers-common")
+    testCompile "org.springframework.cloud:spring-cloud-contract-wiremock"
+    testCompile "org.springframework.cloud:spring-cloud-starter-contract-stub-runner"
+    testCompile "junit:junit:4.12"
+    testCompile "org.springframework.boot:spring-boot-starter-test:$springBootVersion"
+    testCompile "io.eventuate.local.java:eventuate-client-java-spring-jdbc:$eventuateLocalVersion"
+    testCompile 'com.jayway.restassured:rest-assured:2.3.0'
+    testCompile "com.jayway.jsonpath:json-path:2.3.0"
+}
+
